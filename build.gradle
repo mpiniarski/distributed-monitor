@@ -1,3 +1,11 @@
+buildscript {
+    ext {
+        kotlinVersion = '1.1.4-3'
+        kotlinLoggingVersion = "1.4.6"
+    }
+}
+
+
 plugins {
     id "org.jetbrains.kotlin.jvm" version "1.2.31"
 }
@@ -8,9 +16,14 @@ repositories {
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    compile "io.github.microutils:kotlin-logging:$kotlinLoggingVersion"
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.24'
 }
 
 apply plugin: 'application'
 
 group = 'pl.mpiniarski.distributedmonitor'
 mainClassName = 'pl.mpiniarski.distributedmonitor.MainKt'
+
+logging.captureStandardOutput LogLevel.DEBUG
