@@ -24,3 +24,11 @@ hs_err_pid*
 # gradle
 /build
 .gradle
+
+
+/bin
+/out
+
+/.idea
+
+/.project
