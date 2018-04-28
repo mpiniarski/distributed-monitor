@@ -5,8 +5,8 @@ import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 open class DistributedMonitor {
     protected val lock : DistributedLock = DistributedLock("", listOf(""), ZeroMqBinaryMessenger("", listOf("")))
 
-    protected fun createCondition() : DistributedCondition {
-        return lock.newCondition()
+    protected fun createCondition(name: String) : Condition {
+        return lock.newCondition(name)
     }
 
     protected inline fun <T> entry(f : () -> T) : T {
@@ -19,10 +19,3 @@ open class DistributedMonitor {
     }
 }
 
-class DistributedCondition {
-    fun await() {
-    }
-
-    fun signal() {
-    }
-}

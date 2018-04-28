@@ -9,8 +9,8 @@ class Buffer(private val size : Int, nodes : List<String>)
 
     private val logger = KotlinLogging.logger { }
 
-    private val empty = createCondition()
-    private val full = createCondition()
+    private val empty = createCondition("empty")
+    private val full = createCondition("full")
     private val values : Stack<Int> = Stack()
 
     fun produce(value : Int) = entry {

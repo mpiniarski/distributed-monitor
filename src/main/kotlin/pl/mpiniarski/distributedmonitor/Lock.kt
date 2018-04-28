@@ -7,7 +7,7 @@ import java.util.concurrent.Semaphore
 import kotlin.concurrent.thread
 
 
-class TimestampedMessage(val timestamp : Int) : MessageBody()
+open class TimestampedMessage(val timestamp : Int) : MessageBody()
 
 class Request(val priority : Int, val host : String) : Comparable<Request> {
     override fun compareTo(other : Request) = when {
@@ -25,13 +25,30 @@ class DistributedLock(private val node : String, nodes : List<String>, binaryMes
         const val REQUEST : String = "1"
         const val RESPONSE : String = "2"
         const val RELEASE : String = "3"
+        const val AWAIT_ON_CONDITION : String = "4"
+        const val SIGNAL_ON_CONDITION : String = "5"
     }
 
     private val messenger = Messenger(
             listOf(
                     BodySerializer(REQUEST, { val msg = it as TimestampedMessage; "${msg.timestamp}" }, { TimestampedMessage(it.toInt()) }),
                     BodySerializer(RESPONSE, { val msg = it as TimestampedMessage; "${msg.timestamp}" }, { TimestampedMessage(it.toInt()) }),
-                    BodySerializer(RELEASE, { val msg = it as TimestampedMessage; "${msg.timestamp}" }, { TimestampedMessage(it.toInt()) })
+                    BodySerializer(RELEASE, { val msg = it as TimestampedMessage; "${msg.timestamp}" }, { TimestampedMessage(it.toInt()) }),
+
+                    BodySerializer(AWAIT_ON_CONDITION, {
+                        val msg = it as ConditionMessage
+                        "${msg.timestamp};${msg.conditionName}"
+                    }, {
+                        val attributes = it.split(";")
+                        ConditionMessage(attributes[0].toInt(), attributes[1])
+                    }),
+                    BodySerializer(SIGNAL_ON_CONDITION, {
+                        val msg = it as ConditionMessage
+                        "${msg.timestamp};${msg.conditionName}"
+                    }, {
+                        val attributes = it.split(";")
+                        ConditionMessage(attributes[0].toInt(), attributes[1])
+                    })
             ),
             binaryMessenger
     )
@@ -39,6 +56,8 @@ class DistributedLock(private val node : String, nodes : List<String>, binaryMes
     private val queue : BlockingQueue<Request> = PriorityBlockingQueue<Request>()
 
     private val timeManager = TimeManager(nodes)
+
+    private val conditions : MutableMap<String, Condition> = HashMap()
 
     init {
         val tryToRelease = {
@@ -48,7 +67,7 @@ class DistributedLock(private val node : String, nodes : List<String>, binaryMes
             }
         }
         thread(start = true) {
-            while (true) {
+            loop@ while (true) {
                 val message = messenger.receive()
                 val header = message.header
                 val body = message.body as TimestampedMessage
@@ -68,6 +87,22 @@ class DistributedLock(private val node : String, nodes : List<String>, binaryMes
                             tryToRelease()
                         }
                     }
+
+                    AWAIT_ON_CONDITION -> {
+                        val conditionMessage = body as ConditionMessage
+                        val condition = conditions[conditionMessage.conditionName] ?: break@loop
+                        condition.awaiting.put(AwaitRequest(conditionMessage.timestamp, header.sender))
+                    }
+                    SIGNAL_ON_CONDITION -> {
+                        val conditionMessage = body as ConditionMessage
+                        val condition = conditions[conditionMessage.conditionName] ?: break@loop
+
+                        val topRequest = condition.awaiting.remove()
+                        if (topRequest.host == node) {
+                            condition.semaphore.release()
+                        }
+
+                    }
                 }
             }
         }
@@ -86,8 +121,9 @@ class DistributedLock(private val node : String, nodes : List<String>, binaryMes
         timeManager.notifyEvent()
     }
 
-    fun newCondition() : DistributedCondition {
-        //TODO
-        return DistributedCondition()
+    fun newCondition(name : String) : Condition {
+        val condition = Condition(name, this, messenger, timeManager, node)
+        conditions[name] = condition
+        return condition
     }
 }
