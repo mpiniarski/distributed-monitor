@@ -3,7 +3,7 @@ package pl.mpiniarski.distributedmonitor
 import junit.framework.Assert.assertEquals
 import junit.framework.Assert.assertTrue
 import org.junit.Test
-import pl.mpiniarski.distributedmonitor.communication.ZeroMqCommunicator
+import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import kotlin.concurrent.thread
 
@@ -17,9 +17,9 @@ class DistributedLockTest {
                 "tcp://localhost:5558"
         )
         var count = 0
-        val communicator1 = ZeroMqCommunicator(nodes[0], nodes - nodes[0])
+        val communicator1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
         val lock1 = DistributedLock(nodes[0], nodes - nodes[0], communicator1)
-        val communicator2 = ZeroMqCommunicator(nodes[1], nodes - nodes[1])
+        val communicator2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
         val lock2 = DistributedLock(nodes[1], nodes - nodes[1], communicator2)
 
         val thread1 = thread(start = true) {
@@ -68,7 +68,7 @@ class DistributedLockTest {
         var count = 0
 
         (0 .. 9).map {
-            val communicator = ZeroMqCommunicator(nodes[it], nodes - nodes[it])
+            val communicator = ZeroMqBinaryMessenger(nodes[it], nodes - nodes[it])
             val lock = DistributedLock(nodes[it], nodes - nodes[it], communicator)
             thread(start = true) {
                 Thread.sleep(Random().nextInt(100).toLong())

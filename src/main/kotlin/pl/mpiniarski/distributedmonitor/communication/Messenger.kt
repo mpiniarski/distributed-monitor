@@ -1,36 +1,58 @@
 package pl.mpiniarski.distributedmonitor.communication
 
 
-abstract class Message(val type : String)
+data class MessageHeader(val sender : String, val type : String)
+abstract class MessageBody
 
-class UnsupportedMessageTypeException(type : String) : Exception("Message type [$type] is not supported")
+data class Message(val header : MessageHeader, val body : MessageBody)
 
-class MessageType(val type : String, val serialize : (Message) -> String, val deserialize : (String) -> Message)
+class UnsupportedMessageTypeException(type : String) : Exception("Message messageType [$type] is not supported")
 
-class Messenger(messageTypes : List<MessageType>, private val communicator : Communicator) {
-    private val serializers = messageTypes.map { it.type to it.serialize }.toMap()
-    private val deserializers = messageTypes.map { it.type to it.deserialize }.toMap()
+class BodySerializer(val messageType : String, val serialize : (MessageBody) -> String, val deserialize : (String) -> MessageBody)
+
+class Messenger(bodySerializers : List<BodySerializer>, private val binaryMessenger : BinaryMessenger) {
+    private val serializers = bodySerializers.map { it.messageType to it.serialize }.toMap()
+    private val deserializers = bodySerializers.map { it.messageType to it.deserialize }.toMap()
+
+    private fun serializeHeader(header : MessageHeader) : ByteArray {
+        return "${header.sender};${header.type}".toByteArray()
+    }
+
+    private fun deserializeHeader(header : ByteArray) : MessageHeader {
+        val attributes = String(header).split(";")
+        return MessageHeader(attributes[0], attributes[1])
+    }
 
     fun send(receiver : String, message : Message) {
-        val serializedMessage = serializers[message.type]?.let { it(message) }
-                ?: throw UnsupportedMessageTypeException(message.type)
-        communicator.send(receiver, message.type, serializedMessage)
+        val type = message.header.type
+        val serializedMessage = serializers[type]?.let { it(message.body) }
+                ?: throw UnsupportedMessageTypeException(type)
+        binaryMessenger.send(receiver, BinaryMessage(
+                serializeHeader(message.header),
+                serializedMessage.toByteArray())
+        )
     }
 
     fun sendToAll(message : Message) {
-        val serializedMessage = serializers[message.type]?.let { it(message) }
-                ?: throw UnsupportedMessageTypeException(message.type)
-        communicator.sendToAll(message.type, serializedMessage)
+        val type = message.header.type
+        val serializedMessage = serializers[type]?.let { it(message.body) }
+                ?: throw UnsupportedMessageTypeException(type)
+        binaryMessenger.sendToAll(BinaryMessage(
+                serializeHeader(message.header),
+                serializedMessage.toByteArray())
+        )
     }
 
-    fun receive() : Pair<String, Message> {
-        val receive = communicator.receive()
-        val deserializedMessage = deserializers[receive.type]?.let { it(receive.payload) }
-                ?: throw UnsupportedMessageTypeException(receive.type)
-        return Pair(receive.sender, deserializedMessage)
+    fun receive() : Message {
+        val binaryMessage = binaryMessenger.receive()
+        val header = deserializeHeader(binaryMessage.header)
+
+        val body = deserializers[header.type]?.let { it(String(binaryMessage.body)) }
+                ?: throw UnsupportedMessageTypeException(header.type)
+        return Message(header, body)
     }
 
     fun close() {
-        communicator.close()
+        binaryMessenger.close()
     }
 }

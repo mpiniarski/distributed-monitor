@@ -4,33 +4,42 @@ import junit.framework.Assert.assertEquals
 import org.junit.Test
 
 class MessengerTest {
-    val nodes = listOf(
+    private val nodes = listOf(
             "tcp://localhost:5557",
-            "tcp://localhost:5558",
-            "tcp://localhost:5559"
+            "tcp://localhost:5558"
     )
 
     @Test
     fun sendAndReceive() {
-        val communicator1 = ZeroMqCommunicator(
-                nodes[0],
-                listOf(nodes[1]))
+        val communicator1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
+        val communicator2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
 
-        val communicator2 = ZeroMqCommunicator(
-                nodes[1],
-                listOf(nodes[0]))
+        class TestMessage(val payload : String) : MessageBody() {
+            override fun equals(other : Any?) : Boolean {
+                if (this === other) return true
+                if (javaClass != other?.javaClass) return false
 
-        class TestMessage : Message("TYPE")
-        val messageTypes = listOf(MessageType("TYPE", { "" }, { TestMessage() }))
+                other as TestMessage
+
+                if (payload != other.payload) return false
+
+                return true
+            }
+
+            override fun hashCode() : Int {
+                return payload.hashCode()
+            }
+        }
+
+        val messageTypes = listOf(BodySerializer("TYPE", { (it as TestMessage).payload }, { TestMessage(it) }))
 
         val messenger1 = Messenger(messageTypes, communicator1)
         val messenger2 = Messenger(messageTypes, communicator2)
 
-        val message = TestMessage()
+        val message = Message(MessageHeader("1", "TYPE"), TestMessage("payload"))
         messenger1.send(nodes[1], message)
-        val (sender, received) = messenger2.receive()
+        val receivedMessage = messenger2.receive()
 
-        assertEquals(nodes[0], sender)
-        assertEquals(message.type, received.type)
+        assertEquals(message, receivedMessage)
     }
 }

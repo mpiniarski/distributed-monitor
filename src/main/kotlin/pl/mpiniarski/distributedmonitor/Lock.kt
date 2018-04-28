@@ -1,19 +1,13 @@
 package pl.mpiniarski.distributedmonitor
 
-import pl.mpiniarski.distributedmonitor.communication.Communicator
-import pl.mpiniarski.distributedmonitor.communication.Message
-import pl.mpiniarski.distributedmonitor.communication.MessageType
-import pl.mpiniarski.distributedmonitor.communication.Messenger
-import java.util.*
+import pl.mpiniarski.distributedmonitor.communication.*
+import java.util.concurrent.BlockingQueue
+import java.util.concurrent.PriorityBlockingQueue
 import java.util.concurrent.Semaphore
 import kotlin.concurrent.thread
 
 
-abstract class TimestampedMessage(type : String, val timestamp : Int) : Message(type)
-
-class RequestMessage(timestamp : Int) : TimestampedMessage("REQUEST", timestamp)
-class ResponseMessage(timestamp : Int) : TimestampedMessage("RESPONSE", timestamp)
-class ReleaseMessage(timestamp : Int) : TimestampedMessage("RELEASE", timestamp)
+class TimestampedMessage(val timestamp : Int) : MessageBody()
 
 class Request(val priority : Int, val host : String) : Comparable<Request> {
     override fun compareTo(other : Request) = when {
@@ -25,45 +19,53 @@ class Request(val priority : Int, val host : String) : Comparable<Request> {
     }
 }
 
-class DistributedLock(private val node : String, nodes : List<String>, communicator : Communicator) {
+class DistributedLock(private val node : String, nodes : List<String>, binaryMessenger : BinaryMessenger) {
+
+    companion object {
+        const val REQUEST : String = "1"
+        const val RESPONSE : String = "2"
+        const val RELEASE : String = "3"
+    }
+
     private val messenger = Messenger(
             listOf(
-                    MessageType("REQUEST", { val msg = it as RequestMessage; "${msg.timestamp}" }, { RequestMessage(it.toInt()) }),
-                    MessageType("RESPONSE", { val msg = it as ResponseMessage; "${msg.timestamp}" }, { ResponseMessage(it.toInt()) }),
-                    MessageType("RELEASE", { val msg = it as ReleaseMessage; "${msg.timestamp}" }, { ReleaseMessage(it.toInt()) })
+                    BodySerializer(REQUEST, { val msg = it as TimestampedMessage; "${msg.timestamp}" }, { TimestampedMessage(it.toInt()) }),
+                    BodySerializer(RESPONSE, { val msg = it as TimestampedMessage; "${msg.timestamp}" }, { TimestampedMessage(it.toInt()) }),
+                    BodySerializer(RELEASE, { val msg = it as TimestampedMessage; "${msg.timestamp}" }, { TimestampedMessage(it.toInt()) })
             ),
-            communicator
+            binaryMessenger
     )
     private val semaphore = Semaphore(0, true)
-    private val queue : Queue<Request> = PriorityQueue<Request>()
+    private val queue : BlockingQueue<Request> = PriorityBlockingQueue<Request>()
 
     private val timeManager = TimeManager(nodes)
 
     init {
+        val tryToRelease = {
+            val topRequest = queue.element()
+            if (topRequest.host == node && timeManager.allRemoteLaterThen(topRequest.priority)) {
+                semaphore.release()
+            }
+        }
         thread(start = true) {
             while (true) {
-                val (sender, message) = messenger.receive()
-                val timestampedMessage = message as TimestampedMessage
-                val timestamp = timestampedMessage.timestamp
-                timeManager.notifySync(timestamp, sender)
-                if (message.type == "REQUEST") {
-                    val message = message as RequestMessage
-                    queue.add(Request(timestamp, sender))
-                    messenger.send(sender, ResponseMessage(timeManager.localTime))
-                    timeManager.notifyEvent()
-                } else if (message.type == "RESPONSE") {
-                    val message = message as ResponseMessage
-                    val topRequest = queue.element()
-                    if (topRequest.host == node && timeManager.allRemoteLaterThen(topRequest.priority)) {
-                        semaphore.release()
+                val message = messenger.receive()
+                val header = message.header
+                val body = message.body as TimestampedMessage
+                timeManager.notifySync(body.timestamp, header.sender)
+                when (header.type) {
+                    REQUEST -> {
+                        queue.add(Request(body.timestamp, header.sender))
+                        messenger.send(header.sender, Message(MessageHeader(node, RESPONSE), TimestampedMessage(timeManager.localTime)))
+                        timeManager.notifyEvent()
                     }
-                } else if (message.type == "RELEASE") {
-                    val message = message as ReleaseMessage
-                    queue.remove()
-                    if (!queue.isEmpty()) {
-                        val topRequest = queue.element()
-                        if (topRequest.host == node && timeManager.allRemoteLaterThen(topRequest.priority)) {
-                            semaphore.release()
+                    RESPONSE -> {
+                        tryToRelease()
+                    }
+                    RELEASE -> {
+                        queue.remove()
+                        if (!queue.isEmpty()) {
+                            tryToRelease()
                         }
                     }
                 }
@@ -73,14 +75,15 @@ class DistributedLock(private val node : String, nodes : List<String>, communica
 
     fun lock() {
         queue.add(Request(timeManager.localTime, node))
-        messenger.sendToAll(RequestMessage(timeManager.localTime))
+        messenger.sendToAll(Message(MessageHeader(node, REQUEST), TimestampedMessage(timeManager.localTime)))
         timeManager.notifyEvent()
         semaphore.acquire()
     }
 
     fun unlock() {
         queue.remove()
-        this.messenger.sendToAll(ReleaseMessage(timeManager.localTime))
+        messenger.sendToAll(Message(MessageHeader(node, RELEASE), TimestampedMessage(timeManager.localTime)))
+        timeManager.notifyEvent()
     }
 
     fun newCondition() : DistributedCondition {
