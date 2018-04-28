@@ -5,7 +5,7 @@ import java.util.*
 
 
 class Buffer(private val size : Int, nodes : List<String>)
-    : DistributedMonitor(ZeroMqCommunicator("", listOf(""))) {
+    : DistributedMonitor() {
 
     private val logger = KotlinLogging.logger { }
 
