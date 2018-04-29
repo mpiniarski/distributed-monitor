@@ -1,11 +1,11 @@
 package pl.mpiniarski.distributedmonitor
 
-import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 
-open class DistributedMonitor {
-    protected val lock : DistributedLock = DistributedLock("", listOf(""), ZeroMqBinaryMessenger("", listOf("")))
+open class DistributedMonitor(name : String, messenger : Messenger) {
+    protected val lock : DistributedLock = DistributedLock("$name/lock", messenger)
 
-    protected fun createCondition(name: String) : Condition {
+    protected fun createCondition(name : String) : Condition {
         return lock.newCondition(name)
     }
 

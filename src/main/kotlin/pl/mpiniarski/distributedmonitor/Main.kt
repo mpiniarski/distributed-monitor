@@ -1,11 +1,13 @@
 package pl.mpiniarski.distributedmonitor
 
 import mu.KotlinLogging
+import pl.mpiniarski.distributedmonitor.communication.Messenger
+import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 
 
-class Buffer(private val size : Int, nodes : List<String>)
-    : DistributedMonitor() {
+class Buffer(private val size : Int, messenger : Messenger)
+    : DistributedMonitor("buffer", messenger) {
 
     private val logger = KotlinLogging.logger { }
 
@@ -62,7 +64,11 @@ class Consumer(private val buffer : Buffer) : Thread() {
 fun main(args : Array<String>) {
     println("kotlin is great!")
 
-    val buffer = Buffer(1, listOf())
+
+    val zeroMqBinaryMessenger = ZeroMqBinaryMessenger("", listOf(""))
+    val messenger = Messenger(zeroMqBinaryMessenger)
+
+    val buffer = Buffer(1, messenger)
 
     val producer = Producer(buffer)
     val consumer = Consumer(buffer)

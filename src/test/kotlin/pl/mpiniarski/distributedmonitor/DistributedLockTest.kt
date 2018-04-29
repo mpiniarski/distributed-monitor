@@ -3,6 +3,7 @@ package pl.mpiniarski.distributedmonitor
 import junit.framework.Assert.assertEquals
 import junit.framework.Assert.assertTrue
 import org.junit.Test
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import kotlin.concurrent.thread
@@ -17,10 +18,14 @@ class DistributedLockTest {
                 "tcp://localhost:5558"
         )
         var count = 0
-        val communicator1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-        val lock1 = DistributedLock(nodes[0], nodes - nodes[0], communicator1)
-        val communicator2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-        val lock2 = DistributedLock(nodes[1], nodes - nodes[1], communicator2)
+        val binaryMessenger1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
+        val messenger1 = Messenger(binaryMessenger1)
+        val lock1 = DistributedLock("lock", messenger1)
+        messenger1.start()
+        val binaryMessenger2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
+        val messenger2 = Messenger(binaryMessenger2)
+        val lock2 = DistributedLock("lock", messenger2)
+        messenger2.start()
 
         val thread1 = thread(start = true) {
             lock1.lock()
@@ -46,8 +51,8 @@ class DistributedLockTest {
         thread2.join()
 
         assertTrue(count == 2)
-        communicator1.close()
-        communicator2.close()
+        binaryMessenger1.close()
+        binaryMessenger2.close()
     }
 
     @Test
@@ -68,8 +73,10 @@ class DistributedLockTest {
         var count = 0
 
         (0 .. 9).map {
-            val communicator = ZeroMqBinaryMessenger(nodes[it], nodes - nodes[it])
-            val lock = DistributedLock(nodes[it], nodes - nodes[it], communicator)
+            val binaryMessenger = ZeroMqBinaryMessenger(nodes[it], nodes - nodes[it])
+            val messenger = Messenger(binaryMessenger)
+            val lock = DistributedLock("lock", messenger)
+            messenger.start()
             thread(start = true) {
                 Thread.sleep(Random().nextInt(100).toLong())
                 lock.lock()

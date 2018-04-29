@@ -2,6 +2,7 @@ package pl.mpiniarski.distributedmonitor.communication
 
 import junit.framework.Assert.assertEquals
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
 
 class MessengerTest {
     private val nodes = listOf(
@@ -11,8 +12,9 @@ class MessengerTest {
 
     @Test
     fun sendAndReceive() {
-        val communicator1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-        val communicator2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
+        val latch = CountDownLatch(1)
+        val binaryMessenger1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
+        val binaryMessenger2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
 
         class TestMessage(val payload : String) : MessageBody() {
             override fun equals(other : Any?) : Boolean {
@@ -31,15 +33,28 @@ class MessengerTest {
             }
         }
 
-        val messageTypes = listOf(BodySerializer("TYPE", { (it as TestMessage).payload }, { TestMessage(it) }))
 
-        val messenger1 = Messenger(messageTypes, communicator1)
-        val messenger2 = Messenger(messageTypes, communicator2)
+        val messenger1 = Messenger(binaryMessenger1)
+        val messenger2 = Messenger(binaryMessenger2)
 
-        val message = Message(MessageHeader("1", "TYPE"), TestMessage("payload"))
-        messenger1.send(nodes[1], message)
-        val receivedMessage = messenger2.receive()
+        val objectName = "name"
+        val sendMessageHeader = MessageHeader(objectName, "sender", "type")
+        val sendMessageBody = "body".toByteArray()
 
-        assertEquals(message, receivedMessage)
+        var receivedMessageHeader : MessageHeader? = null
+        var receivedMessageBody : ByteArray? = null
+        messenger1.addHandler(objectName, { header : MessageHeader, body : ByteArray ->
+            receivedMessageHeader = header
+            receivedMessageBody = body
+            latch.countDown()
+        })
+        messenger1.start()
+        messenger2.start()
+
+        messenger2.send(nodes[0], sendMessageHeader, sendMessageBody)
+
+        latch.await()
+        assertEquals(sendMessageHeader, receivedMessageHeader)
+        assertEquals(String(sendMessageBody), String(receivedMessageBody!!))
     }
 }

@@ -31,13 +31,16 @@ data class BinaryMessage(
 }
 
 interface BinaryMessenger {
+    val nodeAddress : String
+    val remoteNodesAddresses : List<String>
+
     fun send(receiver : String, binaryMessage : BinaryMessage)
     fun sendToAll(binaryMessage : BinaryMessage)
     fun receive() : BinaryMessage
     fun close()
 }
 
-class ZeroMqBinaryMessenger(nodeAddress : String, remoteNodesAddresses : List<String>) : BinaryMessenger {
+class ZeroMqBinaryMessenger(override val nodeAddress : String, override val remoteNodesAddresses : List<String>) : BinaryMessenger {
     private val receiveSocket : ZMQ.Socket
     private val sendSockets : Map<String, ZMQ.Socket>
 

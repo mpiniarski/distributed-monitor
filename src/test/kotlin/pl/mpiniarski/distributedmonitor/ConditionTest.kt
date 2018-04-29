@@ -2,6 +2,7 @@ package pl.mpiniarski.distributedmonitor
 
 import junit.framework.Assert.assertEquals
 import org.junit.Test
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import kotlin.collections.ArrayList
@@ -24,10 +25,12 @@ class ConditionTest {
         var bufferCount = 0
 
         val producer = thread(start = true) {
-            val communicator = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-            val lock = DistributedLock(nodes[0], nodes - nodes[0], communicator)
+            val binaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
+            val messenger = Messenger(binaryMessenger)
+            val lock = DistributedLock("lock", messenger)
             val full = lock.newCondition("full")
             val empty = lock.newCondition("empty")
+            messenger.start()
 
             for (i in 1 .. 9) {
                 Thread.sleep(Random().nextInt(100).toLong())
@@ -48,10 +51,12 @@ class ConditionTest {
         val result = ArrayList<Int>()
 
         val consumer = thread(start = true) {
-            val communicator = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-            val lock = DistributedLock(nodes[1], nodes - nodes[1], communicator)
+            val binaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
+            val messenger = Messenger(binaryMessenger)
+            val lock = DistributedLock("lock", messenger)
             val full = lock.newCondition("full")
             val empty = lock.newCondition("empty")
+            messenger.start()
 
             for (i in 1 .. 9) {
                 Thread.sleep(Random().nextInt(100).toLong())
