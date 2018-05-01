@@ -9,7 +9,6 @@ import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 
 class ConditionTest {
-
     companion object {
         const val MAXCOUNT = 1
     }
@@ -24,6 +23,8 @@ class ConditionTest {
         var buffer = 0
         var bufferCount = 0
 
+        val itemsRange = 1 .. 9
+
         val producer = thread(start = true) {
             val binaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
             val messenger = Messenger(binaryMessenger)
@@ -32,7 +33,7 @@ class ConditionTest {
             val empty = lock.newCondition("empty")
             messenger.start()
 
-            for (i in 1 .. 9) {
+            for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
                 lock.lock()
                 if (bufferCount == MAXCOUNT) {
@@ -58,7 +59,7 @@ class ConditionTest {
             val empty = lock.newCondition("empty")
             messenger.start()
 
-            for (i in 1 .. 9) {
+            for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
                 lock.lock()
                 if (bufferCount == 0) {
@@ -77,6 +78,6 @@ class ConditionTest {
         producer.join()
         consumer.join()
 
-        assertEquals((1 .. 9).toList(), result)
+        assertEquals(itemsRange.toList(), result)
     }
 }

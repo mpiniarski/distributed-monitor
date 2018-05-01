@@ -1,5 +1,6 @@
 package pl.mpiniarski.distributedmonitor.communication
 
+import mu.KotlinLogging
 import kotlin.concurrent.thread
 
 
@@ -9,6 +10,7 @@ abstract class MessageBody
 class UnsupportedObjectException(objectName : String) : Exception("Message to object [$objectName] is not supported")
 
 class Messenger(private val binaryMessenger : BinaryMessenger) {
+    private val logger = KotlinLogging.logger { }
 
     public val node = binaryMessenger.nodeAddress
     public val nodes = binaryMessenger.remoteNodesAddresses
@@ -30,20 +32,24 @@ class Messenger(private val binaryMessenger : BinaryMessenger) {
 
     fun send(receiver : String, header : MessageHeader, messageBody : ByteArray) {
         binaryMessenger.send(receiver, BinaryMessage(serializeHeader(header), messageBody))
+        logger.debug("Sent ${header.type} to $receiver")
     }
 
     fun sendToAll(header : MessageHeader, messageBody : ByteArray) {
         binaryMessenger.sendToAll(BinaryMessage(serializeHeader(header), messageBody))
+        logger.debug("Sent ${header.type} to all")
     }
 
     fun start() {
         thread(start = true) {
             while (true) {
-                val binaryMessage = binaryMessenger.receive()
-                val header = deserializeHeader(binaryMessage.header)
-                val handler = handlers[header.objectName] ?: throw UnsupportedObjectException(header.type)
-                thread(start = true) {
+                try {
+                    val binaryMessage = binaryMessenger.receive()
+                    val header = deserializeHeader(binaryMessage.header)
+                    val handler = handlers[header.objectName] ?: throw UnsupportedObjectException(header.type)
                     handler(header, binaryMessage.body)
+                } catch (exception : UnableToReceiveException) {
+                    logger.warn { "Unable to receive message" }
                 }
             }
         }

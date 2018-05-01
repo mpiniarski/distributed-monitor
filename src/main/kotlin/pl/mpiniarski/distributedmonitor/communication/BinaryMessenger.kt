@@ -5,6 +5,7 @@ import org.zeromq.ZMsg
 import java.util.*
 
 class AddressNotKnownException : Exception()
+class UnableToReceiveException : Exception()
 
 
 data class BinaryMessage(
@@ -79,9 +80,12 @@ class ZeroMqBinaryMessenger(override val nodeAddress : String, override val remo
 
     override fun receive() : BinaryMessage {
         val message = ZMsg.recvMsg(receiveSocket)
-        val header = message.pop().data
-        val body = message.pop().data
-        return BinaryMessage(header, body)
+        val header = message.pop()
+        val body = message.pop()
+        if (header == null || body == null){
+            throw UnableToReceiveException()
+        }
+        return BinaryMessage(header.data, body.data)
     }
 
     override fun close() {
