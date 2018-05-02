@@ -47,11 +47,11 @@ class ZeroMqBinaryMessenger(override val localNode : String, override val remote
 
     init {
         receiveSocket = context.socket(ZMQ.PULL)
-        receiveSocket.bind(localNode)
+        receiveSocket.bind("tcp://$localNode")
 
         sendSockets = remoteNodes.map {
             val socket = context.socket(ZMQ.PUSH)
-            socket.connect(it)
+            socket.connect("tcp://$it")
             it to socket
         }.toMap()
     }

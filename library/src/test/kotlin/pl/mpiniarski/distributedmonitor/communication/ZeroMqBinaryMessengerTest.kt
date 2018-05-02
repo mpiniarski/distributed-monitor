@@ -6,9 +6,9 @@ import org.junit.Test
 internal class ZeroMqBinaryMessengerTest {
 
     val nodes = listOf(
-            "tcp://localhost:5557",
-            "tcp://localhost:5558",
-            "tcp://localhost:5559"
+            "localhost:5557",
+            "localhost:5558",
+            "localhost:5559"
     )
 
     @Test

@@ -10,19 +10,9 @@ abstract class MessageBody
 
 class UnsupportedObjectException(objectName : String) : Exception("Message to object [$objectName] is not supported")
 
-interface Messenger {
-    val localNode : String
-    val remoteNodes : List<String>
-
-    fun send(receiver : String, header : MessageHeader, messageBody : ByteArray)
-    fun sendToAll(header : MessageHeader, messageBody : ByteArray)
-    fun start()
-    fun close()
-}
-
-class StandardMessenger(
+class Messenger(
         private val binaryMessenger : BinaryMessenger
-) : Messenger {
+) {
     companion object {
 
         val logger = KotlinLogging.logger { }
@@ -30,8 +20,8 @@ class StandardMessenger(
 
     private val handlers : MutableMap<String, (MessageHeader, ByteArray) -> Unit> = HashMap()
 
-    override val localNode = binaryMessenger.localNode
-    override val remoteNodes = binaryMessenger.remoteNodes
+    val localNode = binaryMessenger.localNode
+    val remoteNodes = binaryMessenger.remoteNodes
 
     private var isWorking : Boolean = true
 
@@ -39,17 +29,17 @@ class StandardMessenger(
         handlers[objectName] = handler
     }
 
-    override fun send(receiver : String, header : MessageHeader, messageBody : ByteArray) {
+    fun send(receiver : String, header : MessageHeader, messageBody : ByteArray) {
         binaryMessenger.send(receiver, BinaryMessage(serializeHeader(header), messageBody))
         logger.debug("Sent ${header.type} to $receiver")
     }
 
-    override fun sendToAll(header : MessageHeader, messageBody : ByteArray) {
+    fun sendToAll(header : MessageHeader, messageBody : ByteArray) {
         binaryMessenger.sendToAll(BinaryMessage(serializeHeader(header), messageBody))
         logger.debug("Sent ${header.type} to all")
     }
 
-    override fun start() {
+    fun start() {
         thread(start = true) {
             while (isWorking) {
                 try {
@@ -65,7 +55,7 @@ class StandardMessenger(
         }
     }
 
-    override fun close() {
+    fun close() {
         isWorking = false
         binaryMessenger.close()
     }

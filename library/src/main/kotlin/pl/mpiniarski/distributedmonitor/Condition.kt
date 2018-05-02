@@ -2,13 +2,13 @@ package pl.mpiniarski.distributedmonitor
 
 import mu.KotlinLogging
 import pl.mpiniarski.distributedmonitor.communication.MessageHeader
-import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import java.util.*
-import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.Lock
 
-class Condition(private val name : String, private val lock : DistributedLock, private val messenger : StandardMessenger,
-                private val timeManager : TimeManager,
-                private val localLock : ReentrantLock) {
+class DistributedCondition(private val name : String, private val lock : DistributedLock, private val messenger : Messenger,
+                           private val timeManager : TimeManager,
+                           private val localLock : Lock) {
     companion object {
         val logger = KotlinLogging.logger { }
         const val AWAIT_ON_CONDITION : String = "4"

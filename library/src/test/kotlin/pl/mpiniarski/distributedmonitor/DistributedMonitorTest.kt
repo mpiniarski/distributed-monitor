@@ -3,7 +3,7 @@ package pl.mpiniarski.distributedmonitor
 import junit.framework.Assert.assertEquals
 import mu.KotlinLogging
 import org.junit.Test
-import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import kotlin.concurrent.thread
@@ -17,7 +17,7 @@ class DistributedMonitorTest {
     @Test
     fun producerConsumerTest() {
 
-        class Buffer(private val size : Int, messenger : StandardMessenger)
+        class Buffer(private val size : Int, messenger : Messenger)
             : DistributedMonitor("buffer", messenger) {
             private val logger = KotlinLogging.logger { }
 
@@ -63,14 +63,14 @@ class DistributedMonitorTest {
 
 
         val nodes = listOf(
-                "tcp://localhost:5557",
-                "tcp://localhost:5558"
+                "localhost:5557",
+                "localhost:5558"
         )
 
         val itemsRange = 1 .. 9
 
         val producerBinaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-        val producerMessenger = StandardMessenger(producerBinaryMessenger)
+        val producerMessenger = Messenger(producerBinaryMessenger)
         val producerBuffer = Buffer(MAXCOUNT, producerMessenger)
         val producer = thread(start = true) {
             producerMessenger.start()
@@ -83,7 +83,7 @@ class DistributedMonitorTest {
 
 
         val consumerBinaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-        val consumerMessenger = StandardMessenger(consumerBinaryMessenger)
+        val consumerMessenger = Messenger(consumerBinaryMessenger)
         val consumerBuffer = Buffer(MAXCOUNT, consumerMessenger)
         val consumer = thread(start = true) {
             val result = ArrayList<Int>()

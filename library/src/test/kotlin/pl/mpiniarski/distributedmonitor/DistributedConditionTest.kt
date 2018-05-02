@@ -2,14 +2,14 @@ package pl.mpiniarski.distributedmonitor
 
 import junit.framework.Assert.assertEquals
 import org.junit.Test
-import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 
-class ConditionTest {
+class DistributedConditionTest {
     companion object {
         const val MAXCOUNT = 1
     }
@@ -17,8 +17,8 @@ class ConditionTest {
     @Test
     fun producerConsumerTest() {
         val nodes = listOf(
-                "tcp://localhost:5557",
-                "tcp://localhost:5558"
+                "localhost:5557",
+                "localhost:5558"
         )
 
         var buffer = 0
@@ -27,7 +27,7 @@ class ConditionTest {
         val itemsRange = 1 .. 9
 
         val producerBinaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-        val producerMessenger = StandardMessenger(producerBinaryMessenger)
+        val producerMessenger = Messenger(producerBinaryMessenger)
         val producer = thread(start = true) {
             val lock = DistributedLock("distributedLock", producerMessenger, ReentrantLock(), TimeManager(nodes - nodes[0]))
             val full = lock.newCondition("full")
@@ -53,7 +53,7 @@ class ConditionTest {
         val result = ArrayList<Int>()
 
         val consumerBinaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-        val consumerMessenger = StandardMessenger(consumerBinaryMessenger)
+        val consumerMessenger = Messenger(consumerBinaryMessenger)
         val consumer = thread(start = true) {
             val lock = DistributedLock("distributedLock", consumerMessenger, ReentrantLock(), TimeManager(nodes - nodes[1]))
             val full = lock.newCondition("full")

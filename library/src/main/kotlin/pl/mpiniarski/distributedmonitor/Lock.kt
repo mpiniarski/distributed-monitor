@@ -2,8 +2,9 @@ package pl.mpiniarski.distributedmonitor
 
 import mu.KotlinLogging
 import pl.mpiniarski.distributedmonitor.communication.MessageHeader
-import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import java.util.*
+import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
 
 
@@ -18,9 +19,9 @@ class Request(val priority : Int, val host : String) : Comparable<Request> {
 }
 
 class DistributedLock(private val name : String,
-                      private val messenger : StandardMessenger,
-                      private val localLock : ReentrantLock,
-                      private val timeManager : TimeManager) {
+                      private val messenger : Messenger,
+                      private val localLock : Lock = ReentrantLock(),
+                      private val timeManager : TimeManager = TimeManager(messenger.remoteNodes)) {
     companion object {
         private val logger = KotlinLogging.logger { }
         const val REQUEST : String = "1"
@@ -94,8 +95,8 @@ class DistributedLock(private val name : String,
         localLock.unlock()
     }
 
-    fun newCondition(name : String) : Condition {
-        return Condition("${this.name}/$name", this, messenger, timeManager, localLock)
+    fun newCondition(name : String) : DistributedCondition {
+        return DistributedCondition("${this.name}/$name", this, messenger, timeManager, localLock)
     }
 
     private fun logMessage(operationName : String, queue : Queue<Request>) =

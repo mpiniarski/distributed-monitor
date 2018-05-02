@@ -3,7 +3,7 @@ package pl.mpiniarski.distributedmonitor
 import junit.framework.Assert.assertEquals
 import junit.framework.Assert.assertTrue
 import org.junit.Test
-import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
@@ -13,16 +13,16 @@ class DistributedLockTest {
     @Test
     fun lockOn2Hosts() {
         val nodes = listOf(
-                "tcp://localhost:5557",
-                "tcp://localhost:5558"
+                "localhost:5557",
+                "localhost:5558"
         )
         var count = 0
         val binaryMessenger1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-        val messenger1 = StandardMessenger(binaryMessenger1)
+        val messenger1 = Messenger(binaryMessenger1)
         val lock1 = DistributedLock("distributedLock", messenger1, ReentrantLock(), TimeManager(nodes - nodes[0]))
         messenger1.start()
         val binaryMessenger2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-        val messenger2 = StandardMessenger(binaryMessenger2)
+        val messenger2 = Messenger(binaryMessenger2)
         val lock2 = DistributedLock("distributedLock", messenger2, ReentrantLock(), TimeManager(nodes - nodes[1]))
         messenger2.start()
 
@@ -57,23 +57,23 @@ class DistributedLockTest {
     @Test
     fun lockOn10Hosts() {
         val nodes = listOf(
-                "tcp://localhost:5557",
-                "tcp://localhost:5558",
-                "tcp://localhost:5559",
-                "tcp://localhost:5560",
-                "tcp://localhost:5561",
-                "tcp://localhost:5562",
-                "tcp://localhost:5563",
-                "tcp://localhost:5564",
-                "tcp://localhost:5565",
-                "tcp://localhost:5566"
+                "localhost:5557",
+                "localhost:5558",
+                "localhost:5559",
+                "localhost:5560",
+                "localhost:5561",
+                "localhost:5562",
+                "localhost:5563",
+                "localhost:5564",
+                "localhost:5565",
+                "localhost:5566"
         )
 
         var count = 0
 
         (0 .. 9).map {
             val binaryMessenger = ZeroMqBinaryMessenger(nodes[it], nodes - nodes[it])
-            val messenger = StandardMessenger(binaryMessenger)
+            val messenger = Messenger(binaryMessenger)
             val lock = DistributedLock("distributedLock", messenger, ReentrantLock(), TimeManager(nodes - nodes[it]))
             messenger.start()
             val thread = thread(start = true) {

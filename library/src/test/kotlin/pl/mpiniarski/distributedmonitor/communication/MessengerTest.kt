@@ -4,10 +4,10 @@ import junit.framework.Assert.assertEquals
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 
-class StandardMessengerTest {
+class MessengerTest {
     private val nodes = listOf(
-            "tcp://localhost:5557",
-            "tcp://localhost:5558"
+            "localhost:5557",
+            "localhost:5558"
     )
 
     @Test
@@ -16,8 +16,8 @@ class StandardMessengerTest {
         val binaryMessenger1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
         val binaryMessenger2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
 
-        val messenger1 = StandardMessenger(binaryMessenger1)
-        val messenger2 = StandardMessenger(binaryMessenger2)
+        val messenger1 = Messenger(binaryMessenger1)
+        val messenger2 = Messenger(binaryMessenger2)
 
         val objectName = "name"
         val sendMessageHeader = MessageHeader(objectName, "sender", "type")

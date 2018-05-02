@@ -3,7 +3,7 @@ package pl.mpiniarski.distributedmonitor
 import mu.KotlinLogging
 import pl.mpiniarski.distributedmonitor.communication.MessageBody
 import pl.mpiniarski.distributedmonitor.communication.MessageHeader
-import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import java.util.concurrent.locks.ReentrantLock
 
 
@@ -34,7 +34,7 @@ class StateMessageBody(val state : ByteArray, timestamp : Int) : TimestampedMess
 
 abstract class DistributedMonitor(
         private val name : String,
-        private val messenger : StandardMessenger) {
+        private val messenger : Messenger) {
     companion object {
         private val logger = KotlinLogging.logger { }
         const val STATE : String = "0"
@@ -85,7 +85,7 @@ abstract class DistributedMonitor(
         localLock.unlock()
     }
 
-    protected fun createCondition(name : String) : Condition {
+    protected fun createCondition(name : String) : DistributedCondition {
         return distributedLock.newCondition(name)
     }
 
