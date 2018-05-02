@@ -6,6 +6,7 @@ import org.junit.Test
 import pl.mpiniarski.distributedmonitor.communication.Messenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
 
 class DistributedLockTest {
@@ -20,11 +21,11 @@ class DistributedLockTest {
         var count = 0
         val binaryMessenger1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
         val messenger1 = Messenger(binaryMessenger1)
-        val lock1 = DistributedLock("lock", messenger1)
+        val lock1 = DistributedLock("lock", messenger1, ReentrantLock(), TimeManager(nodes - nodes[0]))
         messenger1.start()
         val binaryMessenger2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
         val messenger2 = Messenger(binaryMessenger2)
-        val lock2 = DistributedLock("lock", messenger2)
+        val lock2 = DistributedLock("lock", messenger2, ReentrantLock(), TimeManager(nodes - nodes[1]))
         messenger2.start()
 
         val thread1 = thread(start = true) {
@@ -75,7 +76,7 @@ class DistributedLockTest {
         (0 .. 9).map {
             val binaryMessenger = ZeroMqBinaryMessenger(nodes[it], nodes - nodes[it])
             val messenger = Messenger(binaryMessenger)
-            val lock = DistributedLock("lock", messenger)
+            val lock = DistributedLock("lock", messenger, ReentrantLock(), TimeManager(nodes - nodes[it]))
             messenger.start()
             thread(start = true) {
                 Thread.sleep(Random().nextInt(100).toLong())

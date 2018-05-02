@@ -1,19 +1,12 @@
 package pl.mpiniarski.distributedmonitor
 
 import mu.KotlinLogging
-import pl.mpiniarski.distributedmonitor.communication.MessageBody
 import pl.mpiniarski.distributedmonitor.communication.MessageHeader
 import pl.mpiniarski.distributedmonitor.communication.Messenger
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.PriorityBlockingQueue
 import java.util.concurrent.locks.ReentrantLock
 
-
-open class TimestampedMessage(val timestamp : Int) : MessageBody() {
-    fun serialize() : ByteArray {
-        return "$timestamp".toByteArray()
-    }
-}
 
 class Request(val priority : Int, val host : String) : Comparable<Request> {
     override fun compareTo(other : Request) = when {
@@ -25,7 +18,10 @@ class Request(val priority : Int, val host : String) : Comparable<Request> {
     }
 }
 
-class DistributedLock(private val name : String, private val messenger : Messenger) {
+class DistributedLock(private val name : String,
+                      private val messenger : Messenger,
+                      private val localLock : ReentrantLock,
+                      private val timeManager : TimeManager) {
     private val logger = KotlinLogging.logger { }
 
     companion object {
@@ -39,10 +35,8 @@ class DistributedLock(private val name : String, private val messenger : Messeng
 
     private val queue : BlockingQueue<Request> = PriorityBlockingQueue<Request>()
 
-    private val localLock = ReentrantLock(true)
     private val localCondition = localLock.newCondition()
 
-    private val timeManager = TimeManager(nodes)
 
     init {
         val tryToRelease = {
