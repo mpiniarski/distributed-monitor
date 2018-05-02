@@ -2,44 +2,32 @@ package pl.mpiniarski.distributedmonitor
 
 import mu.KotlinLogging
 import pl.mpiniarski.distributedmonitor.communication.MessageHeader
-import pl.mpiniarski.distributedmonitor.communication.Messenger
-import java.util.concurrent.BlockingQueue
-import java.util.concurrent.PriorityBlockingQueue
+import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 
-class AwaitRequest(val priority : Int, val host : String) : Comparable<Request> {
-    override fun compareTo(other : Request) = when {
-        priority < other.priority -> -1
-        priority > other.priority -> 1
-        host < other.host -> -1
-        host > other.host -> 1
-        else -> 0
-    }
-}
-
-class Condition(private val name : String, private val lock : DistributedLock, private val messenger : Messenger,
+class Condition(private val name : String, private val lock : DistributedLock, private val messenger : StandardMessenger,
                 private val timeManager : TimeManager,
                 private val localLock : ReentrantLock) {
-    private val logger = KotlinLogging.logger { }
-
     companion object {
+        val logger = KotlinLogging.logger { }
         const val AWAIT_ON_CONDITION : String = "4"
         const val SIGNAL_ON_CONDITION : String = "5"
     }
 
-    private val node = messenger.node
+    private val node = messenger.localNode
     private val localCondition = localLock.newCondition()
-    private val awaiting : BlockingQueue<AwaitRequest> = PriorityBlockingQueue<AwaitRequest>()
+    private val awaiting : Queue<Request> = PriorityQueue<Request>()
 
     init {
         messenger.addHandler(name) { header : MessageHeader, body : ByteArray ->
             localLock.lock()
 
-            val timestampedBody = TimestampedMessage(String(body).toInt())
+            val timestampedBody = TimestampedMessageBody.deserialize(body)
             timeManager.notifySync(timestampedBody.timestamp, header.sender)
             when (header.type) {
                 AWAIT_ON_CONDITION -> {
-                    awaiting.put(AwaitRequest(timestampedBody.timestamp, header.sender))
+                    awaiting.add(Request(timestampedBody.timestamp, header.sender))
                     logger.debug(logMessage("received AWAIT_ON_CONDITION", awaiting))
                 }
                 SIGNAL_ON_CONDITION -> {
@@ -59,9 +47,9 @@ class Condition(private val name : String, private val lock : DistributedLock, p
     fun await() {
         localLock.lock()
 
-        awaiting.put(AwaitRequest(timeManager.localTime, node))
+        awaiting.add(Request(timeManager.localTime, node))
         logger.debug(logMessage("await", awaiting))
-        messenger.sendToAll(MessageHeader(name, node, AWAIT_ON_CONDITION), TimestampedMessage(timeManager.localTime).serialize())
+        messenger.sendToAll(MessageHeader(name, node, AWAIT_ON_CONDITION), TimestampedMessageBody(timeManager.localTime).serialize())
         timeManager.notifyEvent()
 
         lock.unlock()
@@ -77,7 +65,7 @@ class Condition(private val name : String, private val lock : DistributedLock, p
         if (!awaiting.isEmpty()) {
             val topRequest = awaiting.remove()
             logger.debug(logMessage("signal", awaiting))
-            messenger.sendToAll(MessageHeader(name, node, SIGNAL_ON_CONDITION), TimestampedMessage(timeManager.localTime).serialize())
+            messenger.sendToAll(MessageHeader(name, node, SIGNAL_ON_CONDITION), TimestampedMessageBody(timeManager.localTime).serialize())
             timeManager.notifyEvent()
             if (topRequest.host == node) {
                 localCondition.signal()
@@ -87,5 +75,6 @@ class Condition(private val name : String, private val lock : DistributedLock, p
         localLock.unlock()
     }
 
-    private fun logMessage(operationName : String, queue : BlockingQueue<AwaitRequest>) = "$name: $operationName: ${timeManager.localTime};$node;${queue.joinToString(",", "[", "]") { "${it.host}:${it.priority}" }}}"
+    private fun logMessage(operationName : String, queue : Queue<Request>) =
+            "$name: $operationName: ${timeManager.localTime};$node;${queue.joinToString(",", "[", "]") { "${it.host}:${it.priority}" }}}"
 }

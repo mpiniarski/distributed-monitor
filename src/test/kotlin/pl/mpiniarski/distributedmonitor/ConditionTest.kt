@@ -2,7 +2,7 @@ package pl.mpiniarski.distributedmonitor
 
 import junit.framework.Assert.assertEquals
 import org.junit.Test
-import pl.mpiniarski.distributedmonitor.communication.Messenger
+import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
@@ -28,8 +28,8 @@ class ConditionTest {
 
         val producer = thread(start = true) {
             val binaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-            val messenger = Messenger(binaryMessenger)
-            val lock = DistributedLock("lock", messenger, ReentrantLock(), TimeManager(nodes - nodes[0]))
+            val messenger = StandardMessenger(binaryMessenger)
+            val lock = DistributedLock("distributedLock", messenger, ReentrantLock(), TimeManager(nodes - nodes[0]))
             val full = lock.newCondition("full")
             val empty = lock.newCondition("empty")
             messenger.start()
@@ -54,8 +54,8 @@ class ConditionTest {
 
         val consumer = thread(start = true) {
             val binaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-            val messenger = Messenger(binaryMessenger)
-            val lock = DistributedLock("lock", messenger, ReentrantLock(), TimeManager(nodes - nodes[1]))
+            val messenger = StandardMessenger(binaryMessenger)
+            val lock = DistributedLock("distributedLock", messenger, ReentrantLock(), TimeManager(nodes - nodes[1]))
             val full = lock.newCondition("full")
             val empty = lock.newCondition("empty")
             messenger.start()

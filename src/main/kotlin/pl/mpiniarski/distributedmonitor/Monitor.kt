@@ -3,36 +3,54 @@ package pl.mpiniarski.distributedmonitor
 import mu.KotlinLogging
 import pl.mpiniarski.distributedmonitor.communication.MessageBody
 import pl.mpiniarski.distributedmonitor.communication.MessageHeader
-import pl.mpiniarski.distributedmonitor.communication.Messenger
+import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
 import java.util.concurrent.locks.ReentrantLock
 
 
-class StateMessage(val state : ByteArray, timestamp : Int) : TimestampedMessage(timestamp) {
-    override fun serialize() : ByteArray {
-        return state.plus(";$timestamp".toByteArray())
+open class TimestampedMessageBody(val timestamp : Int) : MessageBody() {
+    companion object {
+        fun deserialize(byteArray : ByteArray) : TimestampedMessageBody {
+            return TimestampedMessageBody(String(byteArray).toInt())
+        }
     }
-}
 
-open class TimestampedMessage(val timestamp : Int) : MessageBody() {
     open fun serialize() : ByteArray {
         return "$timestamp".toByteArray()
     }
 }
 
-abstract class DistributedMonitor(private val name : String, private val messenger : Messenger) {
-    private val logger = KotlinLogging.logger { }
-
+class StateMessageBody(val state : ByteArray, timestamp : Int) : TimestampedMessageBody(timestamp) {
     companion object {
+        fun deserialize(byteArray : ByteArray) : StateMessageBody {
+            val attributes = String(byteArray).split(";")
+            return StateMessageBody(attributes[0].toByteArray(), attributes[1].toInt())
+        }
+    }
+
+    override fun serialize() : ByteArray {
+        return state.plus(";".toByteArray()).plus(super.serialize())
+    }
+}
+
+abstract class DistributedMonitor(
+        private val name : String,
+        private val messenger : StandardMessenger) {
+    companion object {
+        private val logger = KotlinLogging.logger { }
         const val STATE : String = "0"
     }
+
+    protected abstract fun serializeState() : ByteArray
+    protected abstract fun deserializeAndUpdateState(state : ByteArray)
+
+    private val localLock = ReentrantLock(true)
+    private val timeManager = TimeManager(messenger.remoteNodes)
+    protected val distributedLock : DistributedLock = DistributedLock("$name/lock", messenger, localLock, timeManager)
 
     init {
         messenger.addHandler(name) { header : MessageHeader, body : ByteArray ->
             localLock.lock()
-
-            val attributes = String(body).split(";")
-            val stateBody = StateMessage(attributes[0].toByteArray(), attributes[1].toInt())
-
+            val stateBody = StateMessageBody.deserialize(body)
             timeManager.notifySync(stateBody.timestamp, header.sender)
             when (header.type) {
                 STATE -> {
@@ -46,35 +64,30 @@ abstract class DistributedMonitor(private val name : String, private val messeng
         }
     }
 
-    private fun logMessage(operationName : String) =
-            "$name: $operationName: ${timeManager.localTime};${messenger.node}"
-
-    private val localLock = ReentrantLock(true)
-    private val timeManager = TimeManager(messenger.nodes)
-    protected val lock : DistributedLock = DistributedLock("$name/lock", messenger, localLock, timeManager)
-
-    protected fun createCondition(name : String) : Condition {
-        return lock.newCondition(name)
-    }
 
     protected inline fun <T> entry(f : () -> T) : T {
         try {
-            lock.lock()
+            distributedLock.lock()
             return f()
         } finally {
             synchronizeState()
-            lock.unlock()
+            distributedLock.unlock()
         }
     }
 
     protected fun synchronizeState() {
         localLock.lock()
-        messenger.sendToAll(MessageHeader(name, messenger.node, STATE), StateMessage(serializeState(), timeManager.localTime).serialize())
+        messenger.sendToAll(MessageHeader(name, messenger.localNode, STATE), StateMessageBody(serializeState(), timeManager.localTime).serialize())
         timeManager.notifyEvent()
         localLock.unlock()
     }
 
-    protected abstract fun serializeState() : ByteArray
-    protected abstract fun deserializeAndUpdateState(state : ByteArray)
+    protected fun createCondition(name : String) : Condition {
+        return distributedLock.newCondition(name)
+    }
+
+
+    private fun logMessage(operationName : String) =
+            "$name: $operationName: ${timeManager.localTime};${messenger.localNode}"
 }
 

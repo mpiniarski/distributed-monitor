@@ -29,7 +29,7 @@ fun main(args : Array<String>) {
 //
 //
 //    val zeroMqBinaryMessenger = ZeroMqBinaryMessenger("", listOf(""))
-//    val messenger = Messenger(zeroMqBinaryMessenger)
+//    val messenger = StandardMessenger(zeroMqBinaryMessenger)
 //
 //    val buffer = Buffer(1, messenger)
 //

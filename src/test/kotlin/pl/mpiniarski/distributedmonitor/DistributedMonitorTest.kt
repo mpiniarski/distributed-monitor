@@ -3,7 +3,7 @@ package pl.mpiniarski.distributedmonitor
 import junit.framework.Assert.assertEquals
 import mu.KotlinLogging
 import org.junit.Test
-import pl.mpiniarski.distributedmonitor.communication.Messenger
+import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 import kotlin.concurrent.thread
@@ -17,7 +17,7 @@ class DistributedMonitorTest {
     @Test
     fun producerConsumerTest() {
 
-        class Buffer(private val size : Int, messenger : Messenger)
+        class Buffer(private val size : Int, messenger : StandardMessenger)
             : DistributedMonitor("buffer", messenger) {
             private val logger = KotlinLogging.logger { }
 
@@ -67,11 +67,11 @@ class DistributedMonitorTest {
                 "tcp://localhost:5558"
         )
 
-        val itemsRange = 1 .. 999
+        val itemsRange = 1 .. 9
 
         val producer = thread(start = true) {
             val binaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-            val messenger = Messenger(binaryMessenger)
+            val messenger = StandardMessenger(binaryMessenger)
             val buffer = Buffer(MAXCOUNT, messenger)
             messenger.start()
 
@@ -84,7 +84,7 @@ class DistributedMonitorTest {
 
         val consumer = thread(start = true) {
             val binaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-            val messenger = Messenger(binaryMessenger)
+            val messenger = StandardMessenger(binaryMessenger)
             val buffer = Buffer(MAXCOUNT, messenger)
             val result = ArrayList<Int>()
 

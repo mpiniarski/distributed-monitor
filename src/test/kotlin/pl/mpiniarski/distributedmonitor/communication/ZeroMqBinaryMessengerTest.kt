@@ -41,28 +41,4 @@ internal class ZeroMqBinaryMessengerTest {
         assertEquals(receivedMessage2, message)
         assertEquals(receivedMessage3, message)
     }
-    //TODO
-//    @Test(expected = TestTimedOutException::class, timeout = 1000)
-//    fun shouldNotReceiveWhenSendToAnother() {
-//        val communicator1 = ZeroMqBinaryMessenger(
-//                nodes[0],
-//                listOf(nodes[1], nodes[2]))
-//
-//        val communicator2 = ZeroMqBinaryMessenger(
-//                nodes[1],
-//                listOf(nodes[0], nodes[2]))
-//
-//        val communicator3 = ZeroMqBinaryMessenger(
-//                nodes[2],
-//                listOf(nodes[0], nodes[1]))
-//
-//        val sendMessage = Message("TYPE1", "Body 1")
-//        communicator1.send(nodes[2], sendMessage)
-//
-//        communicator2.receive()
-//
-//        communicator1.close()
-//        communicator2.close()
-//        communicator3.close()
-//    }
 }

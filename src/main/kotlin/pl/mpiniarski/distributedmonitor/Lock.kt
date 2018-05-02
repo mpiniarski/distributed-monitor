@@ -2,9 +2,8 @@ package pl.mpiniarski.distributedmonitor
 
 import mu.KotlinLogging
 import pl.mpiniarski.distributedmonitor.communication.MessageHeader
-import pl.mpiniarski.distributedmonitor.communication.Messenger
-import java.util.concurrent.BlockingQueue
-import java.util.concurrent.PriorityBlockingQueue
+import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 
 
@@ -19,29 +18,23 @@ class Request(val priority : Int, val host : String) : Comparable<Request> {
 }
 
 class DistributedLock(private val name : String,
-                      private val messenger : Messenger,
+                      private val messenger : StandardMessenger,
                       private val localLock : ReentrantLock,
                       private val timeManager : TimeManager) {
-    private val logger = KotlinLogging.logger { }
-
     companion object {
+        private val logger = KotlinLogging.logger { }
         const val REQUEST : String = "1"
         const val RESPONSE : String = "2"
         const val RELEASE : String = "3"
     }
 
-    private val node = messenger.node
-    private val nodes = messenger.nodes
-
-    private val queue : BlockingQueue<Request> = PriorityBlockingQueue<Request>()
-
     private val localCondition = localLock.newCondition()
-
+    private val requestQueue : Queue<Request> = PriorityQueue()
 
     init {
         val tryToRelease = {
-            val topRequest = queue.peek()
-            if (topRequest != null && topRequest.host == node && timeManager.allRemoteLaterThen(topRequest.priority)) {
+            val topRequest = requestQueue.peek()
+            if (topRequest != null && topRequest.host == messenger.localNode && timeManager.allRemoteLaterThen(topRequest.priority)) {
                 localCondition.signal()
             }
         }
@@ -49,23 +42,23 @@ class DistributedLock(private val name : String,
         messenger.addHandler(name) { header : MessageHeader, body : ByteArray ->
             localLock.lock()
 
-            val timestampedBody = TimestampedMessage(String(body).toInt())
+            val timestampedBody = TimestampedMessageBody.deserialize(body)
             timeManager.notifySync(timestampedBody.timestamp, header.sender)
             when (header.type) {
                 REQUEST -> {
-                    queue.add(Request(timestampedBody.timestamp, header.sender))
-                    logger.debug(logMessage("received REQUEST", queue))
-                    messenger.send(header.sender, MessageHeader(name, node, RESPONSE), TimestampedMessage(timeManager.localTime).serialize())
+                    requestQueue.add(Request(timestampedBody.timestamp, header.sender))
+                    logger.debug(logMessage("received REQUEST", requestQueue))
+                    messenger.send(header.sender, MessageHeader(name, messenger.localNode, RESPONSE), TimestampedMessageBody(timeManager.localTime).serialize())
                     timeManager.notifyEvent()
                 }
                 RESPONSE -> {
-                    logger.debug(logMessage("received RESPONSE", queue))
+                    logger.debug(logMessage("received RESPONSE", requestQueue))
                     tryToRelease()
                 }
                 RELEASE -> {
-                    queue.remove()
-                    logger.debug(logMessage("received RELEASE", queue))
-                    if (!queue.isEmpty()) {
+                    requestQueue.remove()
+                    logger.debug(logMessage("received RELEASE", requestQueue))
+                    if (!requestQueue.isEmpty()) {
                         tryToRelease()
                     }
                 }
@@ -79,32 +72,32 @@ class DistributedLock(private val name : String,
     fun lock() {
         localLock.lock()
 
-        queue.add(Request(timeManager.localTime, node))
-        logger.debug(logMessage("lock", queue))
-        messenger.sendToAll(MessageHeader(name, node, REQUEST), TimestampedMessage(timeManager.localTime).serialize())
+        requestQueue.add(Request(timeManager.localTime, messenger.localNode))
+        logger.debug(logMessage("distributedLock", requestQueue))
+        messenger.sendToAll(MessageHeader(name, messenger.localNode, REQUEST), TimestampedMessageBody(timeManager.localTime).serialize())
         timeManager.notifyEvent()
         localCondition.await()
 
-        logger.debug("$name: ENTER CS: ${timeManager.localTime};$node")
+        logger.debug("$name: ENTER CS: ${timeManager.localTime};${messenger.localNode}")
         localLock.unlock()
     }
 
     fun unlock() {
         localLock.lock()
-        logger.debug("$name: LEAVE CS: ${timeManager.localTime};$node")
+        logger.debug("$name: LEAVE CS: ${timeManager.localTime};${messenger.localNode}")
 
-        queue.remove()
-        logger.debug(logMessage("unlock", queue))
-        messenger.sendToAll(MessageHeader(name, node, RELEASE), TimestampedMessage(timeManager.localTime).serialize())
+        requestQueue.remove()
+        logger.debug(logMessage("unlock", requestQueue))
+        messenger.sendToAll(MessageHeader(name, messenger.localNode, RELEASE), TimestampedMessageBody(timeManager.localTime).serialize())
         timeManager.notifyEvent()
 
         localLock.unlock()
     }
 
-    private fun logMessage(operationName : String, queue : BlockingQueue<Request>) =
-            "$name: $operationName: ${timeManager.localTime};$node;${queue.joinToString(",", "[", "]") { "${it.host}:${it.priority}" }}}"
-
     fun newCondition(name : String) : Condition {
         return Condition("${this.name}/$name", this, messenger, timeManager, localLock)
     }
+
+    private fun logMessage(operationName : String, queue : Queue<Request>) =
+            "$name: $operationName: ${timeManager.localTime};${messenger.localNode};${queue.joinToString(",", "[", "]") { "${it.host}:${it.priority}" }}}"
 }
