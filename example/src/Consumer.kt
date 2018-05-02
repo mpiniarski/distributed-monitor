@@ -1,9 +1,9 @@
 import pl.mpiniarski.distributedmonitor.DistributedMonitor
-import pl.mpiniarski.distributedmonitor.communication.StandardMessenger
+import pl.mpiniarski.distributedmonitor.communication.Messenger
 import pl.mpiniarski.distributedmonitor.communication.ZeroMqBinaryMessenger
 import java.util.*
 
-class Buffer(private val size : Int, messenger : StandardMessenger)
+class Buffer(private val size : Int, messenger : Messenger)
     : DistributedMonitor("buffer", messenger) {
 
     private val empty = createCondition("empty")
@@ -50,8 +50,8 @@ fun main(args : Array<String>) {
 
     System.out.println("START consumer")
 
-    val zeroMqBinaryMessenger = ZeroMqBinaryMessenger("tcp://localhost:5550", listOf("tcp://localhost:5551"))
-    val messenger = StandardMessenger(zeroMqBinaryMessenger)
+    val zeroMqBinaryMessenger = ZeroMqBinaryMessenger("localhost:5550", listOf("localhost:5551"))
+    val messenger = Messenger(zeroMqBinaryMessenger)
     val buffer = Buffer(1, messenger)
 
     messenger.start()
