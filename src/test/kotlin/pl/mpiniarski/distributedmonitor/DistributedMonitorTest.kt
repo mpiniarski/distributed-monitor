@@ -53,7 +53,7 @@ class DistributedMonitorTest {
             override fun deserializeAndUpdateState(state : ByteArray) {
                 val stack = Stack<Int>()
                 val string = String(state)
-                if(!string.isEmpty()){
+                if (!string.isEmpty()) {
                     stack.addAll(string.split(',').map { it.toInt() }.toList())
                 }
                 values = stack
@@ -69,30 +69,30 @@ class DistributedMonitorTest {
 
         val itemsRange = 1 .. 9
 
+        val producerBinaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
+        val producerMessenger = StandardMessenger(producerBinaryMessenger)
+        val producerBuffer = Buffer(MAXCOUNT, producerMessenger)
         val producer = thread(start = true) {
-            val binaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-            val messenger = StandardMessenger(binaryMessenger)
-            val buffer = Buffer(MAXCOUNT, messenger)
-            messenger.start()
+            producerMessenger.start()
 
             for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
-                buffer.produce(i)
+                producerBuffer.produce(i)
             }
         }
 
 
+        val consumerBinaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
+        val consumerMessenger = StandardMessenger(consumerBinaryMessenger)
+        val consumerBuffer = Buffer(MAXCOUNT, consumerMessenger)
         val consumer = thread(start = true) {
-            val binaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-            val messenger = StandardMessenger(binaryMessenger)
-            val buffer = Buffer(MAXCOUNT, messenger)
             val result = ArrayList<Int>()
 
-            messenger.start()
+            consumerMessenger.start()
 
             for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
-                result.add(buffer.consume())
+                result.add(consumerBuffer.consume())
             }
 
             assertEquals(itemsRange.toList(), result)
@@ -100,6 +100,8 @@ class DistributedMonitorTest {
 
         producer.join()
         consumer.join()
+        consumerBuffer.close()
+        producerMessenger.close()
 
     }
 }

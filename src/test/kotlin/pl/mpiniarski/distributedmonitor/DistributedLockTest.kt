@@ -10,8 +10,6 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
 
 class DistributedLockTest {
-
-
     @Test
     fun lockOn2Hosts() {
         val nodes = listOf(
@@ -52,8 +50,8 @@ class DistributedLockTest {
         thread2.join()
 
         assertTrue(count == 2)
-        binaryMessenger1.close()
-        binaryMessenger2.close()
+        messenger1.close()
+        messenger2.close()
     }
 
     @Test
@@ -78,7 +76,7 @@ class DistributedLockTest {
             val messenger = StandardMessenger(binaryMessenger)
             val lock = DistributedLock("distributedLock", messenger, ReentrantLock(), TimeManager(nodes - nodes[it]))
             messenger.start()
-            thread(start = true) {
+            val thread = thread(start = true) {
                 Thread.sleep(Random().nextInt(100).toLong())
                 lock.lock()
                 System.out.println("Thread $it enter")
@@ -88,8 +86,12 @@ class DistributedLockTest {
                 lock.unlock()
                 System.out.println("Thread $it leave")
             }
+            Pair(messenger, thread)
+        }.map {
+            it.second.join()
+            it.first
         }.forEach {
-            it.join()
+            it.close()
         }
 
         assertEquals(10, count)

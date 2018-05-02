@@ -26,13 +26,13 @@ class ConditionTest {
 
         val itemsRange = 1 .. 9
 
+        val producerBinaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
+        val producerMessenger = StandardMessenger(producerBinaryMessenger)
         val producer = thread(start = true) {
-            val binaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-            val messenger = StandardMessenger(binaryMessenger)
-            val lock = DistributedLock("distributedLock", messenger, ReentrantLock(), TimeManager(nodes - nodes[0]))
+            val lock = DistributedLock("distributedLock", producerMessenger, ReentrantLock(), TimeManager(nodes - nodes[0]))
             val full = lock.newCondition("full")
             val empty = lock.newCondition("empty")
-            messenger.start()
+            producerMessenger.start()
 
             for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
@@ -52,13 +52,13 @@ class ConditionTest {
 
         val result = ArrayList<Int>()
 
+        val consumerBinaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
+        val consumerMessenger = StandardMessenger(consumerBinaryMessenger)
         val consumer = thread(start = true) {
-            val binaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-            val messenger = StandardMessenger(binaryMessenger)
-            val lock = DistributedLock("distributedLock", messenger, ReentrantLock(), TimeManager(nodes - nodes[1]))
+            val lock = DistributedLock("distributedLock", consumerMessenger, ReentrantLock(), TimeManager(nodes - nodes[1]))
             val full = lock.newCondition("full")
             val empty = lock.newCondition("empty")
-            messenger.start()
+            consumerMessenger.start()
 
             for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
@@ -78,6 +78,8 @@ class ConditionTest {
 
         producer.join()
         consumer.join()
+        producerMessenger.close()
+        consumerMessenger.close()
 
         assertEquals(itemsRange.toList(), result)
     }

@@ -40,5 +40,9 @@ internal class ZeroMqBinaryMessengerTest {
         val receivedMessage3 = communicator3.receive()
         assertEquals(receivedMessage2, message)
         assertEquals(receivedMessage3, message)
+
+        communicator1.close()
+        communicator2.close()
+        communicator3.close()
     }
 }

@@ -11,7 +11,7 @@ plugins {
 }
 
 repositories {
-    mavenCentral()
+    jcenter()
 }
 
 dependencies {
@@ -20,11 +20,9 @@ dependencies {
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
     compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.24'
     compile group: 'org.zeromq', name: 'jeromq', version: '0.4.3'
+    testCompile 'junit:junit:4.12'
 }
 
-apply plugin: 'application'
-
 group = 'pl.mpiniarski.distributedmonitor'
-mainClassName = 'pl.mpiniarski.distributedmonitor.MainKt'
+version = '1.0.0'
 
-logging.captureStandardOutput LogLevel.DEBUG

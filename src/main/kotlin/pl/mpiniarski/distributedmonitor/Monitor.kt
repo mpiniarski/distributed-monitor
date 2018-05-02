@@ -64,6 +64,9 @@ abstract class DistributedMonitor(
         }
     }
 
+    fun close() {
+        messenger.close()
+    }
 
     protected inline fun <T> entry(f : () -> T) : T {
         try {

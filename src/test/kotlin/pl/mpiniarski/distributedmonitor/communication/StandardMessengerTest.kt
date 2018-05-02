@@ -16,24 +16,6 @@ class StandardMessengerTest {
         val binaryMessenger1 = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
         val binaryMessenger2 = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
 
-        class TestMessage(val payload : String) : MessageBody() {
-            override fun equals(other : Any?) : Boolean {
-                if (this === other) return true
-                if (javaClass != other?.javaClass) return false
-
-                other as TestMessage
-
-                if (payload != other.payload) return false
-
-                return true
-            }
-
-            override fun hashCode() : Int {
-                return payload.hashCode()
-            }
-        }
-
-
         val messenger1 = StandardMessenger(binaryMessenger1)
         val messenger2 = StandardMessenger(binaryMessenger2)
 
@@ -56,5 +38,9 @@ class StandardMessengerTest {
         latch.await()
         assertEquals(sendMessageHeader, receivedMessageHeader)
         assertEquals(String(sendMessageBody), String(receivedMessageBody!!))
+
+        messenger1.close()
+        messenger2.close()
+
     }
 }

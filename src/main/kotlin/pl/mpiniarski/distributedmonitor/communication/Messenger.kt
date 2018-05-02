@@ -34,6 +34,8 @@ class StandardMessenger(
     override val localNode = binaryMessenger.localNode
     override val remoteNodes = binaryMessenger.remoteNodes
 
+    private var isWorking : Boolean = true
+
     fun setStandardHandler(handler : (MessageHeader, ByteArray) -> Unit) {
         standardHandler = handler
     }
@@ -54,7 +56,7 @@ class StandardMessenger(
 
     override fun start() {
         thread(start = true) {
-            while (true) {
+            while (isWorking) {
                 try {
                     val binaryMessage = binaryMessenger.receive()
 
@@ -71,6 +73,7 @@ class StandardMessenger(
     }
 
     override fun close() {
+        isWorking = false
         binaryMessenger.close()
     }
 
