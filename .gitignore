@@ -28,9 +28,12 @@ hs_err_pid*
 .gradle
 
 
-/bin
-/out
+bin/
+out/
 
-/.idea
+
+.idea/
+build/
+out/
 
 /.project

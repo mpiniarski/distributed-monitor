@@ -29,16 +29,11 @@ class StandardMessenger(
     }
 
     private val handlers : MutableMap<String, (MessageHeader, ByteArray) -> Unit> = HashMap()
-    private var standardHandler : (MessageHeader, ByteArray) -> Unit = { _ : MessageHeader, _ : ByteArray -> }
 
     override val localNode = binaryMessenger.localNode
     override val remoteNodes = binaryMessenger.remoteNodes
 
     private var isWorking : Boolean = true
-
-    fun setStandardHandler(handler : (MessageHeader, ByteArray) -> Unit) {
-        standardHandler = handler
-    }
 
     fun addHandler(objectName : String, handler : (MessageHeader, ByteArray) -> Unit) {
         handlers[objectName] = handler
@@ -61,12 +56,10 @@ class StandardMessenger(
                     val binaryMessage = binaryMessenger.receive()
 
                     val header = deserializeHeader(binaryMessage.header)
-                    standardHandler(header, binaryMessage.body)
                     val handler = handlers[header.objectName] ?: throw UnsupportedObjectException(header.type)
                     handler(header, binaryMessage.body)
 
                 } catch (exception : UnableToReceiveException) {
-                    logger.warn { "Unable to receive message" }
                 }
             }
         }

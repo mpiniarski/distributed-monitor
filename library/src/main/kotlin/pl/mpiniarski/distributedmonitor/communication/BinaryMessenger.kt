@@ -1,6 +1,7 @@
 package pl.mpiniarski.distributedmonitor.communication
 
 import org.zeromq.ZMQ
+import org.zeromq.ZMQException
 import org.zeromq.ZMsg
 import java.util.*
 
@@ -69,13 +70,17 @@ class ZeroMqBinaryMessenger(override val localNode : String, override val remote
     }
 
     override fun receive() : BinaryMessage {
-        val message = ZMsg.recvMsg(receiveSocket)
-        val header = message.pop()
-        val body = message.pop()
-        if (header == null || body == null) {
+        try {
+            val message = ZMsg.recvMsg(receiveSocket)
+            val header = message.pop()
+            val body = message.pop()
+            if (header == null || body == null) {
+                throw UnableToReceiveException()
+            }
+            return BinaryMessage(header.data, body.data)
+        } catch (exception : ZMQException) {
             throw UnableToReceiveException()
         }
-        return BinaryMessage(header.data, body.data)
     }
 
     override fun close() {
