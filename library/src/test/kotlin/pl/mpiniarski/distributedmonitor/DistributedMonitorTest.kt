@@ -131,7 +131,7 @@ class DistributedMonitorTest {
                 "localhost:5561" to Role.CONSUMER
         )
 
-        val itemsRange = 1 .. 10000
+        val itemsRange = 1 .. 9
 
         val result = ArrayList<Int>()
 
@@ -177,6 +177,6 @@ class DistributedMonitorTest {
                 }
 
         val items = itemsRange.toList()
-        result.containsAll(items + items + items)
+        result.containsAll(items)
     }
 }

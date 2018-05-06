@@ -11,7 +11,7 @@ class Buffer(private val size : Int, messenger : Messenger)
     private var values : Stack<Int> = Stack()
 
     fun produce(value : Int) = entry {
-        if (values.size == size) {
+        while (values.size == size) {
             full.await()
         }
         values.push(value)
@@ -21,7 +21,7 @@ class Buffer(private val size : Int, messenger : Messenger)
     }
 
     fun consume() : Int = entry {
-        if (values.size == 0) {
+        while (values.size == 0) {
             empty.await()
         }
         val value = values.pop()
