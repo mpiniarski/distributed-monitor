@@ -14,7 +14,6 @@ class Messenger(
         private val binaryMessenger : BinaryMessenger
 ) {
     companion object {
-
         val logger = KotlinLogging.logger { }
     }
 
@@ -22,6 +21,7 @@ class Messenger(
 
     val localNode = binaryMessenger.localNode
     val remoteNodes = binaryMessenger.remoteNodes
+
 
     private var isWorking : Boolean = true
 
@@ -50,7 +50,7 @@ class Messenger(
                     handler(header, binaryMessage.body)
 
                 } catch (exception : UnableToReceiveException) {
-                }
+            }
             }
         }
     }

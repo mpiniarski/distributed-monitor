@@ -57,7 +57,7 @@ class DistributedLock(private val name : String,
                     tryToRelease()
                 }
                 RELEASE -> {
-                    requestQueue.remove()
+                    requestQueue.removeIf { it.host == header.sender }
                     logger.debug(logMessage("received RELEASE", requestQueue))
                     if (!requestQueue.isEmpty()) {
                         tryToRelease()
@@ -100,5 +100,5 @@ class DistributedLock(private val name : String,
     }
 
     private fun logMessage(operationName : String, queue : Queue<Request>) =
-            "$name: $operationName: ${timeManager.localTime};${messenger.localNode};${queue.joinToString(",", "[", "]") { "${it.host}:${it.priority}" }}}"
+            "\t${messenger.localNode}\t${timeManager.localTime}\t$name\t$operationName\t${queue.joinToString(",", "[", "]") { "${it.host}:${it.priority}" }}}"
 }

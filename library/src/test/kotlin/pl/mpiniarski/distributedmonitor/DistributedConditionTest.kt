@@ -37,7 +37,7 @@ class DistributedConditionTest {
             for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
                 lock.lock()
-                if (bufferCount == MAXCOUNT) {
+                while (bufferCount == MAXCOUNT) {
                     full.await()
                 }
                 buffer = i
@@ -63,7 +63,7 @@ class DistributedConditionTest {
             for (i in itemsRange) {
                 Thread.sleep(Random().nextInt(100).toLong())
                 lock.lock()
-                if (bufferCount == 0) {
+                while (bufferCount == 0) {
                     empty.await()
                 }
                 bufferCount -= 1

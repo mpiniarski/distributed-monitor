@@ -11,97 +11,172 @@ import kotlin.concurrent.thread
 class DistributedMonitorTest {
 
     companion object {
-        const val MAXCOUNT = 1
+        val logger = KotlinLogging.logger { }
+    }
+
+    class Buffer(private val size : Int, val messenger : Messenger)
+        : DistributedMonitor("buffer", messenger) {
+        private val logger = KotlinLogging.logger { }
+
+        private val empty = createCondition("empty")
+        private val full = createCondition("full")
+        private var values : Stack<Int> = Stack()
+
+        fun produce(value : Int) = entry {
+            while (values.size == size) {
+                full.await()
+            }
+            values.push(value)
+            if (values.size == 1) {
+                empty.signal()
+            }
+            logger.debug { "\t${messenger.localNode}\t Produced $value" }
+        }
+
+        fun consume() : Int = entry {
+            while (values.size == 0) {
+                empty.await()
+            }
+            val value = values.pop()
+            if (values.size == size - 1) {
+                full.signal()
+            }
+            logger.debug { "\t${messenger.localNode}\t Consumed $value" }
+            return value
+        }
+
+        override fun serializeState() : ByteArray {
+            return values.joinToString(",").toByteArray()
+        }
+
+        override fun deserializeAndUpdateState(state : ByteArray) {
+            val stack = Stack<Int>()
+            val string = String(state)
+            if (!string.isEmpty()) {
+                stack.addAll(string.split(',').map { it.toInt() }.toList())
+            }
+            values = stack
+        }
+
+    }
+
+    enum class Role {
+        PRODUCER,
+        CONSUMER
     }
 
     @Test
     fun producerConsumerTest() {
 
-        class Buffer(private val size : Int, messenger : Messenger)
-            : DistributedMonitor("buffer", messenger) {
-            private val logger = KotlinLogging.logger { }
+        val maxCount = 1
 
-            private val empty = createCondition("empty")
-            private val full = createCondition("full")
-            private var values : Stack<Int> = Stack()
-
-            fun produce(value : Int) = entry {
-                if (values.size == size) {
-                    full.await()
-                }
-                values.push(value)
-                if (values.size == 1) {
-                    empty.signal()
-                }
-            }
-
-            fun consume() : Int = entry {
-                if (values.size == 0) {
-                    empty.await()
-                }
-                val value = values.pop()
-                if (values.size == size - 1) {
-                    full.signal()
-                }
-                return value
-            }
-
-            override fun serializeState() : ByteArray {
-                return values.joinToString(",").toByteArray()
-            }
-
-            override fun deserializeAndUpdateState(state : ByteArray) {
-                val stack = Stack<Int>()
-                val string = String(state)
-                if (!string.isEmpty()) {
-                    stack.addAll(string.split(',').map { it.toInt() }.toList())
-                }
-                values = stack
-            }
-
-        }
-
-
-        val nodes = listOf(
-                "localhost:5557",
-                "localhost:5558"
+        val nodes = mapOf<String, Role>(
+                "localhost:5550" to Role.PRODUCER,
+                "localhost:5555" to Role.CONSUMER
         )
 
         val itemsRange = 1 .. 9
 
-        val producerBinaryMessenger = ZeroMqBinaryMessenger(nodes[0], nodes - nodes[0])
-        val producerMessenger = Messenger(producerBinaryMessenger)
-        val producerBuffer = Buffer(MAXCOUNT, producerMessenger)
-        val producer = thread(start = true) {
-            producerMessenger.start()
+        nodes.map { Pair(ZeroMqBinaryMessenger(it.key, (nodes.keys - it.key).toList()), it.value) }
+                .map { Pair(Messenger(it.first), it.second) }
+                .map { Triple(Buffer(maxCount, it.first), it.first, it.second) }
+                .map {
+                    val buffer = it.first
+                    val messenger = it.second
+                    val role = it.third
+                    val thread : Thread
+                    when (role) {
+                        Role.PRODUCER -> {
+                            thread = thread(start = true) {
+                                messenger.start()
+                                for (i in itemsRange) {
+                                    Thread.sleep(Random().nextInt(100).toLong())
+                                    buffer.produce(i)
+                                }
+                            }
+                        }
+                        Role.CONSUMER -> {
+                            thread = thread(start = true) {
+                                val result = ArrayList<Int>()
+                                messenger.start()
+                                for (i in itemsRange) {
+                                    Thread.sleep(Random().nextInt(100).toLong())
+                                    val value = buffer.consume()
+                                    result.add(value)
+                                }
 
-            for (i in itemsRange) {
-                Thread.sleep(Random().nextInt(100).toLong())
-                producerBuffer.produce(i)
-            }
-        }
+                                assertEquals(itemsRange.toList(), result)
+                            }
+                        }
+                    }
+                    Pair(thread, messenger)
+                }.map {
+                    it.first.join()
+                    it.second
+                }
+                .map {
+                    it.close()
+                }
+    }
 
+    @Test
+    fun multipleProducerConsumerTest() {
 
-        val consumerBinaryMessenger = ZeroMqBinaryMessenger(nodes[1], nodes - nodes[1])
-        val consumerMessenger = Messenger(consumerBinaryMessenger)
-        val consumerBuffer = Buffer(MAXCOUNT, consumerMessenger)
-        val consumer = thread(start = true) {
-            val result = ArrayList<Int>()
+        val maxCount = 1
 
-            consumerMessenger.start()
+        val nodes = mapOf(
+                "localhost:5550" to Role.PRODUCER,
+                "localhost:5551" to Role.PRODUCER,
+                "localhost:5560" to Role.CONSUMER,
+                "localhost:5561" to Role.CONSUMER
+        )
 
-            for (i in itemsRange) {
-                Thread.sleep(Random().nextInt(100).toLong())
-                result.add(consumerBuffer.consume())
-            }
+        val itemsRange = 1 .. 10000
 
-            assertEquals(itemsRange.toList(), result)
-        }
+        val result = ArrayList<Int>()
 
-        producer.join()
-        consumer.join()
-        consumerBuffer.close()
-        producerMessenger.close()
+        nodes.map { Pair(ZeroMqBinaryMessenger(it.key, (nodes.keys - it.key).toList()), it.value) }
+                .map { Pair(Messenger(it.first), it.second) }
+                .map { Triple(Buffer(maxCount, it.first), it.first, it.second) }
+                .map {
+                    val buffer = it.first
+                    val messenger = it.second
+                    val role = it.third
+                    val thread : Thread
+                    when (role) {
+                        Role.PRODUCER -> {
+                            thread = thread(start = true) {
+                                messenger.start()
+                                for (i in itemsRange) {
+                                    Thread.sleep(Random().nextInt(100).toLong())
+                                    buffer.produce(i)
+                                }
+                                logger.debug { "\t${messenger.localNode}\tFINISHED" }
+                            }
+                        }
+                        Role.CONSUMER -> {
+                            thread = thread(start = true) {
+                                messenger.start()
+                                for (i in itemsRange) {
+                                    Thread.sleep(Random().nextInt(100).toLong())
+                                    val value = buffer.consume()
+                                    result.add(value)
+                                    logger.debug { "\t${messenger.localNode}\tConsumeNum $i" }
+                                }
+                                logger.debug { "\t${messenger.localNode}\tFINISHED" }
+                            }
+                        }
+                    }
+                    Pair(thread, messenger)
+                }.map {
+                    it.first.join()
+                    it.second
+                }
+                .map {
+                    it.close()
+                }
 
+        val items = itemsRange.toList()
+        result.containsAll(items + items + items)
     }
 }

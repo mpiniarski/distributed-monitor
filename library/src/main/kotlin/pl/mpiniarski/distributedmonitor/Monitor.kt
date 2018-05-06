@@ -55,7 +55,7 @@ abstract class DistributedMonitor(
             when (header.type) {
                 STATE -> {
                     deserializeAndUpdateState(stateBody.state)
-                    logger.debug(logMessage("received STATE"))
+                    logger.debug { logMessage("received STATE") }
                     timeManager.notifyEvent()
                 }
             }
@@ -80,6 +80,7 @@ abstract class DistributedMonitor(
 
     protected fun synchronizeState() {
         localLock.lock()
+        timeManager.notifyEvent()
         messenger.sendToAll(MessageHeader(name, messenger.localNode, STATE), StateMessageBody(serializeState(), timeManager.localTime).serialize())
         timeManager.notifyEvent()
         localLock.unlock()
@@ -91,6 +92,6 @@ abstract class DistributedMonitor(
 
 
     private fun logMessage(operationName : String) =
-            "$name: $operationName: ${timeManager.localTime};${messenger.localNode}"
+            "\t$name: \t$operationName: \t${timeManager.localTime};\t${messenger.localNode}"
 }
 
